@@ -1,0 +1,2 @@
+intranet.ics.uci.edu = 2
+www.ics.uci.edu = 132
