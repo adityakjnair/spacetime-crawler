@@ -3,7 +3,8 @@ from datamodel.search.Adityan1MonishppSkanade1_datamodel import Adityan1Monishpp
 from spacetime.client.IApplication import IApplication
 from spacetime.client.declarations import Producer, GetterSetter, Getter
 import lxml.html
-import re, os
+import re
+import os
 from time import time
 from urlparse import urlparse, parse_qs, urljoin
 
@@ -14,11 +15,12 @@ logger = logging.getLogger(__name__)
 LOG_HEADER = "[CRAWLER]"
 
 
-max_link = None
-max_link_count = 0
+largest_link = None
+largest_number_of_links = 0
 
 highest_count = 0
 highest_count_link = None
+
 
 @Producer(Adityan1MonishppSkanade1Link)
 @GetterSetter(OneAdityan1MonishppSkanade1UnProcessedLink)
@@ -29,7 +31,6 @@ class CrawlerFrame(IApplication):
         self.app_id = "Adityan1MonishppSkanade1"
         self.frame = frame
         self.starttime = time()
-
 
     def initialize(self):
         self.count = 0
@@ -45,7 +46,8 @@ class CrawlerFrame(IApplication):
             self.frame.add(l)
 
     def update(self):
-        unprocessed_links = self.frame.get_new(OneAdityan1MonishppSkanade1UnProcessedLink)
+        unprocessed_links = self.frame.get_new(
+            OneAdityan1MonishppSkanade1UnProcessedLink)
         if unprocessed_links:
             self.download_links(unprocessed_links)
 
@@ -57,20 +59,21 @@ class CrawlerFrame(IApplication):
             print "Got a link to download:", link.full_url
             downloaded = link.download()
             links = extract_next_links(downloaded)
-            count=0
+            count = 0
             for l in links:
                 if is_valid(l):
-                    count+=1
+                    count += 1
                     analyze_link(l)
                     self.frame.add(Adityan1MonishppSkanade1Link(l))
-            if count>highest_count:
-                highest_count=count
-                highest_count_link=link.full_url
-        
+            if count > highest_count:
+                highest_count = count
+                highest_count_link = link.full_url
+
         f.write('************** Highest No. of Out Links **************\n')
         f.write('Link with highest count is: '+str(highest_count_link)+'\n')
         f.write('Highest Count = '+str(highest_count)+'\n')
-        f.write('************** Subdomains and number of URLs crawled in each one **************\n')
+        f.write(
+            '************** Subdomains and number of URLs crawled in each one **************\n')
         for key in subdomain_map.keys():
             f.write(str(key)+' = '+str(subdomain_map[key])+'\n')
         f.close()
@@ -79,7 +82,8 @@ class CrawlerFrame(IApplication):
         print (
             "Time time spent this session: ",
             time() - self.starttime, " seconds.")
-    
+
+
 def extract_next_links(rawDataObj):
     outputLinks = []
     '''
@@ -93,62 +97,50 @@ def extract_next_links(rawDataObj):
     Suggested library: lxml
     '''
 
-    global max_link
-    global max_link_count
-    
-    # If object has content, extract links from content
+    global largest_link
+    global largest_number_of_links
+
     if rawDataObj.content:
+        html_content = lxml.html.fromstring(rawDataObj.content)
+        number_of_links = 0
+        for link in html_content.iterlinks():
+            URL = link[2]
+            URLs = re.findall(r'([^:]*?[^:\/]*?\.[^:\/]*?(?:\/|$))', URL)
 
-        # Convert string to HTML object
-        html = lxml.html.fromstring(rawDataObj.content)
-        link_count = 0
-        # Loop through links in HTML object
-        for l in html.iterlinks():
-            url = l[2]  # l: (element, attribute, link, pos)
-
-            # break up chained together URLs,
-            # sometimes paths looked like this: www.ics.uci.edu//ugrad/policies/Add_Drop_ChangeOption.php/about/QA_Petitions.php/
-            # where multiple paths were concatenated together.
-            all_urls = re.findall(r'([^:]*?[^:\/]*?\.[^:\/]*?(?:\/|$))',url) # [1:] because ics.uci.edu will be element 0
-            
-            if len(all_urls) > 1:
-                if all_urls[0][:2] == '//': all_urls[0] = all_urls[0][2:]; #cleaning up regex problem
-                all_urls = [all_urls[0] + ('/' if all_urls[0][-1] != '/' else '') + p for p in all_urls[1:]] #make not relative
+            if len(URLs) > 1:
+                if URLs[0][:2] == '//':
+                    URLs[0] = URLs[0][2:]
+                URLs = [URLs[0] + ('/' if URLs[0][-1] !=
+                                   '/' else '') + p for p in URLs[1:]]
             else:
-                all_urls = [url]
+                URLs = [URL]
 
-            for r_url in all_urls:
-                abs_url = r_url
+            for relative_URL in URLs:
+                absolute_URL = relative_URL
 
-                # If link is not absolute, add host name
-                if not urlparse(abs_url).netloc:  # scheme://netloc/path;parameters?query#fragment
+                if not urlparse(absolute_URL).netloc:
 
-                    # If webpage was redirected, use final_url as host name
                     if rawDataObj.is_redirected:
-                        host = rawDataObj.final_url
-                    # Otherwise, just use url as host name
+                        host_name = rawDataObj.final_url
+
                     else:
-                        host = rawDataObj.url
+                        host_name = rawDataObj.url
 
-                    # Make link absolute
-                    abs_url = urljoin(host, abs_url)
+                    absolute_URL = urljoin(host_name, absolute_URL)
 
-                # Add to output list
-                outputLinks.append(abs_url)
-                link_count += 1
+                outputLinks.append(absolute_URL)
+                number_of_links += 1
 
-        # Analytics: Keep track of page with most out links
-        if link_count > max_link_count:
-            max_link = host
-            max_link_count = link_count
-
-    # Print final result (comment out later)
-    # for link in outputLinks:
-    #     print(link)
+        if number_of_links > largest_number_of_links:
+            largest_link = host_name
+            largest_number_of_links = number_of_links
 
     return outputLinks
 
+
 subdomain_map = {}
+
+
 def analyze_link(url):
     global subdomain_map
     parsed = urlparse(url)
@@ -160,10 +152,10 @@ def analyze_link(url):
     else:
         subdomain_map[subdomain] = 1
 
-    # print('Path:',parsed.path)
-    # print('Query:',parsed.query)
 
-already_seen = set()
+prev_encountered = set()
+
+
 def is_valid(url):
     '''
     Function returns True or False based on whether the url has to be
@@ -173,32 +165,32 @@ def is_valid(url):
     '''
     url = url.lower()
 
+    if '#' in url:        
+        url = url[10:url.rfind('#')]
+
     if 'mailto' in url:
-        return False # we can easily ignore mail urls
+        return False  # we can easily ignore mail urls
 
-    if '#' in url:
-        url = url[10:url.rfind('#')] # we don't realy care aboute what position to start at in the page
-
-    global already_seen
-    if url in already_seen:
+    global prev_encountered
+    if url in prev_encountered:
         return False
-    already_seen.add(url)
+    prev_encountered.add(url)
 
     parsed = urlparse(url)
 
-    #heuristic: odd urls had concatenated multiple urls together
-    fullpath = parsed.path + parsed.query + parsed.params
-    if re.search(r'https?://',fullpath):
+    
+    complete_path = parsed.path + parsed.query + parsed.params
+    if re.search(r'https?://', complete_path):
         return False
 
-    repetitions = re.finditer(r'(.+?)\1+',fullpath) #get any repeptitions in the string
-    for rep in repetitions:
-        if len(rep.group(1)) >= 5: #only care about long repeating terms (cant be too small or words like off will trigger...)
+    
+    iterations = re.finditer(r'(.+?)\1+', complete_path)
+    for iteration in iterations:        
+        if len(iteration.group(1)) >= 5:
             return False
-
-    # heuristic: if there are a lot of parameters it is possibly risky dynamically generated content like calendar.ics.uci.edu
-    param_slack = 3
-    if len(parse_qs(parsed.query)) >= param_slack:
+    
+    max_param_limit = 3
+    if len(parse_qs(parsed.query)) >= max_param_limit:
         return False
 
     if parsed.scheme not in set(["http", "https"]):
@@ -206,12 +198,11 @@ def is_valid(url):
 
     try:
         return ".ics.uci.edu" in parsed.hostname \
-            and not re.match(".*\.(css|js|bmp|gif|jpe?g|ico" + "|png|tiff?|mid|mp2|mp3|mp4" \
-                            + "|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf" \
-                            + "|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso|epub|dll|cnf|tgz|sha1" \
-                            + "|thmx|mso|arff|rtf|jar|csv" \
-                            + "|rm|smil|wmv|swf|wma|zip|rar|gz" \
-                            + "|lif)$", parsed.path.lower())
+            and not re.match(".*\.(css|js|bmp|gif|jpe?g|ico" + "|png|tiff?|mid|mp2|mp3|mp4"
+                             + "|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf"
+                             + "|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso|epub|dll|cnf|tgz|sha1"
+                             + "|thmx|mso|arff|rtf|jar|csv"
+                             + "|rm|smil|wmv|swf|wma|zip|rar|gz"
+                             + "|lif)$", parsed.path.lower())
     except TypeError:
         print ("TypeError for ", parsed)
-
