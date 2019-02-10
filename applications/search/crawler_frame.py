@@ -41,6 +41,7 @@ class CrawlerFrame(IApplication):
         else:
             l = Adityan1MonishppSkanade1Link("http://www.ics.uci.edu/")
             print l.full_url
+            update_tld_names()
             self.frame.add(l)
 
     def update(self):
@@ -51,8 +52,7 @@ class CrawlerFrame(IApplication):
     def download_links(self, unprocessed_links):
         global highest_count
         global highest_count_link
-        f = open("highestcount.txt", "w")
-        f1 = open("subdomaincount.txt", "w")        
+        f = open("analytics.txt", "w")
         for link in unprocessed_links:
             print "Got a link to download:", link.full_url
             downloaded = link.download()
@@ -67,12 +67,13 @@ class CrawlerFrame(IApplication):
                 highest_count=count
                 highest_count_link=link.full_url
         
-        f.write('Link with highest count: '+str(highest_count_link))
-        f.write('Count: '+str(highest_count))
+        f.write('************** Highest No. of Out Links **************\n')
+        f.write('Link with highest count is: '+str(highest_count_link)+'\n')
+        f.write('Highest Count = '+str(highest_count)+'\n')
+        f.write('************** Subdomains and number of URLs crawled in each one **************\n')
         for key in subdomain_map.keys():
-            f1.write(str(key)+' = '+str(subdomain_map[key])+'\n')
+            f.write(str(key)+' = '+str(subdomain_map[key])+'\n')
         f.close()
-        f1.close()
 
     def shutdown(self):
         print (
